@@ -4,16 +4,20 @@ from __future__ import unicode_literals
 
 from ..utils import floatToGoString
 
-CONTENT_TYPE_LATEST = str('application/openmetrics-text; version=0.0.1; charset=utf-8')
+CONTENT_TYPE_LATEST = (
+    'application/openmetrics-text; version=0.0.1; charset=utf-8'
+)
+
 """Content type of the latest OpenMetrics text format"""
 
 
 def _is_valid_exemplar_metric(metric, sample):
     if metric.type == 'counter' and sample.name.endswith('_total'):
         return True
-    if metric.type in ('histogram', 'gaugehistogram') and sample.name.endswith('_bucket'):
-        return True
-    return False
+    return bool(
+        metric.type in ('histogram', 'gaugehistogram')
+        and sample.name.endswith('_bucket')
+    )
 
 
 def generate_latest(registry):
@@ -22,9 +26,18 @@ def generate_latest(registry):
     for metric in registry.collect():
         try:
             mname = metric.name
-            output.append('# HELP {0} {1}\n'.format(
-                mname, metric.documentation.replace('\\', r'\\').replace('\n', r'\n').replace('"', r'\"')))
-            output.append('# TYPE {0} {1}\n'.format(mname, metric.type))
+            output.extend(
+                (
+                    '# HELP {0} {1}\n'.format(
+                        mname,
+                        metric.documentation.replace('\\', r'\\')
+                        .replace('\n', r'\n')
+                        .replace('"', r'\"'),
+                    ),
+                    '# TYPE {0} {1}\n'.format(mname, metric.type),
+                )
+            )
+
             if metric.unit:
                 output.append('# UNIT {0} {1}\n'.format(mname, metric.unit))
             for s in metric.samples:

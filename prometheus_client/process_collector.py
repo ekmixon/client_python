@@ -21,10 +21,7 @@ class ProcessCollector(object):
         self._namespace = namespace
         self._pid = pid
         self._proc = proc
-        if namespace:
-            self._prefix = namespace + '_process_'
-        else:
-            self._prefix = 'process_'
+        self._prefix = f'{namespace}_process_' if namespace else 'process_'
         self._ticks = 100.0
         try:
             self._ticks = os.sysconf('SC_CLK_TCK')
@@ -59,19 +56,33 @@ class ProcessCollector(object):
             with open(os.path.join(pid, 'stat'), 'rb') as stat:
                 parts = (stat.read().split(b')')[-1].split())
 
-            vmem = GaugeMetricFamily(self._prefix + 'virtual_memory_bytes',
-                                     'Virtual memory size in bytes.', value=float(parts[20]))
-            rss = GaugeMetricFamily(self._prefix + 'resident_memory_bytes', 'Resident memory size in bytes.',
-                                    value=float(parts[21]) * self._pagesize)
+            vmem = GaugeMetricFamily(
+                f'{self._prefix}virtual_memory_bytes',
+                'Virtual memory size in bytes.',
+                value=float(parts[20]),
+            )
+
+            rss = GaugeMetricFamily(
+                f'{self._prefix}resident_memory_bytes',
+                'Resident memory size in bytes.',
+                value=float(parts[21]) * self._pagesize,
+            )
+
             start_time_secs = float(parts[19]) / self._ticks
-            start_time = GaugeMetricFamily(self._prefix + 'start_time_seconds',
-                                           'Start time of the process since unix epoch in seconds.',
-                                           value=start_time_secs + self._btime)
+            start_time = GaugeMetricFamily(
+                f'{self._prefix}start_time_seconds',
+                'Start time of the process since unix epoch in seconds.',
+                value=start_time_secs + self._btime,
+            )
+
             utime = float(parts[11]) / self._ticks
             stime = float(parts[12]) / self._ticks
-            cpu = CounterMetricFamily(self._prefix + 'cpu_seconds_total',
-                                      'Total user and system CPU time spent in seconds.',
-                                      value=utime + stime)
+            cpu = CounterMetricFamily(
+                f'{self._prefix}cpu_seconds_total',
+                'Total user and system CPU time spent in seconds.',
+                value=utime + stime,
+            )
+
             result.extend([vmem, rss, start_time, cpu])
         except IOError:
             pass
@@ -80,13 +91,19 @@ class ProcessCollector(object):
             with open(os.path.join(pid, 'limits'), 'rb') as limits:
                 for line in limits:
                     if line.startswith(b'Max open file'):
-                        max_fds = GaugeMetricFamily(self._prefix + 'max_fds',
-                                                    'Maximum number of open file descriptors.',
-                                                    value=float(line.split()[3]))
+                        max_fds = GaugeMetricFamily(
+                            f'{self._prefix}max_fds',
+                            'Maximum number of open file descriptors.',
+                            value=float(line.split()[3]),
+                        )
+
                         break
-            open_fds = GaugeMetricFamily(self._prefix + 'open_fds',
-                                         'Number of open file descriptors.',
-                                         len(os.listdir(os.path.join(pid, 'fd'))))
+            open_fds = GaugeMetricFamily(
+                f'{self._prefix}open_fds',
+                'Number of open file descriptors.',
+                len(os.listdir(os.path.join(pid, 'fd'))),
+            )
+
             result.extend([open_fds, max_fds])
         except (IOError, OSError):
             pass

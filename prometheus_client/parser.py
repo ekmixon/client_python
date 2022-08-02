@@ -17,8 +17,7 @@ def text_string_to_metric_families(text):
 
     See text_fd_to_metric_families.
     """
-    for metric_family in text_fd_to_metric_families(StringIO.StringIO(text)):
-        yield metric_family
+    yield from text_fd_to_metric_families(StringIO.StringIO(text))
 
 
 ESCAPE_SEQUENCES = {
@@ -58,10 +57,7 @@ def _parse_labels(labels_string):
     if "=" not in labels_string:
         return labels
 
-    escaping = False
-    if "\\" in labels_string:
-        escaping = True
-
+    escaping = "\\" in labels_string
     # Copy original labels
     sub_labels = labels_string
     try:
@@ -99,7 +95,7 @@ def _parse_labels(labels_string):
         return labels
 
     except ValueError:
-        raise ValueError("Invalid labels: %s" % labels_string)
+        raise ValueError(f"Invalid labels: {labels_string}")
 
 
 # If we have multiple values only consider the first
@@ -165,7 +161,7 @@ def text_fd_to_metric_families(fd):
             else:
                 new_samples = []
                 for s in samples:
-                    new_samples.append(Sample(s[0] + '_total', *s[1:]))
+                    new_samples.append(Sample(f'{s[0]}_total', *s[1:]))
                     samples = new_samples
         metric = Metric(name, documentation, typ)
         metric.samples = samples
@@ -187,10 +183,7 @@ def text_fd_to_metric_families(fd):
                     typ = 'untyped'
                     samples = []
                     allowed_names = [parts[2]]
-                if len(parts) == 4:
-                    documentation = _replace_help_escaping(parts[3])
-                else:
-                    documentation = ''
+                documentation = _replace_help_escaping(parts[3]) if len(parts) == 4 else ''
             elif parts[1] == 'TYPE':
                 if parts[2] != name:
                     if name != '':
@@ -207,9 +200,6 @@ def text_fd_to_metric_families(fd):
                     'histogram': ['_count', '_sum', '_bucket'],
                 }.get(typ, [''])
                 allowed_names = [name + n for n in allowed_names]
-            else:
-                # Ignore other comment tokens
-                pass
         elif line == '':
             # Ignore blank lines
             pass

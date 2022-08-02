@@ -54,6 +54,8 @@ def MultiProcessValue(process_identifier=os.getpid):
     # This avoids the need to also have mutexes in __MmapDict.
     lock = Lock()
 
+
+
     class MmapedValue(object):
         """A float protected by a mutex backed by a per-process mmaped file."""
 
@@ -72,10 +74,7 @@ def MultiProcessValue(process_identifier=os.getpid):
 
         def __reset(self):
             typ, metric_name, name, labelnames, labelvalues, multiprocess_mode = self._params
-            if typ == 'gauge':
-                file_prefix = typ + '_' + multiprocess_mode
-            else:
-                file_prefix = typ
+            file_prefix = f'{typ}_{multiprocess_mode}' if typ == 'gauge' else typ
             if file_prefix not in files:
                 filename = os.path.join(
                     os.environ.get('PROMETHEUS_MULTIPROC_DIR'),
@@ -121,6 +120,7 @@ def MultiProcessValue(process_identifier=os.getpid):
         def get_exemplar(self):
             # TODO: Implement exemplars for multiprocess mode.
             return None
+
 
     return MmapedValue
 

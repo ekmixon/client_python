@@ -97,7 +97,7 @@ class MultiProcessCollector(object):
             for s in metric.samples:
                 name, labels, value, timestamp, exemplar = s
                 if metric.type == 'gauge':
-                    without_pid_key = (name, tuple([l for l in labels if l[0] != 'pid']))
+                    without_pid_key = name, tuple(l for l in labels if l[0] != 'pid')
                     if metric._multiprocess_mode == 'min':
                         current = samples_setdefault(without_pid_key, value)
                         if value < current:
@@ -133,17 +133,17 @@ class MultiProcessCollector(object):
                 for labels, values in buckets.items():
                     acc = 0.0
                     for bucket, value in sorted(values.items()):
-                        sample_key = (
-                            metric.name + '_bucket',
-                            labels + (('le', floatToGoString(bucket)),),
+                        sample_key = f'{metric.name}_bucket', labels + (
+                            ('le', floatToGoString(bucket)),
                         )
+
                         if accumulate:
                             acc += value
                             samples[sample_key] = acc
                         else:
                             samples[sample_key] = value
                     if accumulate:
-                        samples[(metric.name + '_count', labels)] = acc
+                        samples[f'{metric.name}_count', labels] = acc
 
             # Convert to correct sample format.
             metric.samples = [Sample(name_, dict(labels), value) for (name_, labels), value in samples.items()]

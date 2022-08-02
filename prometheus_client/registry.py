@@ -24,8 +24,7 @@ class CollectorRegistry(object):
         """Add a collector to the registry."""
         with self._lock:
             names = self._get_names(collector)
-            duplicates = set(self._names_to_collectors).intersection(names)
-            if duplicates:
+            if duplicates := set(self._names_to_collectors).intersection(names):
                 raise ValueError(
                     'Duplicated timeseries in CollectorRegistry: {0}'.format(
                         duplicates))
@@ -65,8 +64,11 @@ class CollectorRegistry(object):
         }
         for metric in desc_func():
             result.append(metric.name)
-            for suffix in type_suffixes.get(metric.type, []):
-                result.append(metric.name + suffix)
+            result.extend(
+                metric.name + suffix
+                for suffix in type_suffixes.get(metric.type, [])
+            )
+
         return result
 
     def collect(self):
@@ -80,8 +82,7 @@ class CollectorRegistry(object):
         if ti:
             yield ti
         for collector in collectors:
-            for metric in collector.collect():
-                yield metric
+            yield from collector.collect()
 
     def restricted_registry(self, names):
         """Returns object that only collects some metrics.
@@ -147,8 +148,7 @@ class RestrictedRegistry(object):
             yield target_info_metric
         for collector in collectors:
             for metric in collector.collect():
-                m = metric._restricted_metric(self._name_set)
-                if m:
+                if m := metric._restricted_metric(self._name_set):
                     yield m
 
 

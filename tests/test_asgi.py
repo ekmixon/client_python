@@ -62,10 +62,9 @@ class ASGITest(TestCase):
         self.send_input({"type": "http.request", "body": b""})
 
     def get_output(self):
-        output = asyncio.get_event_loop().run_until_complete(
+        return asyncio.get_event_loop().run_until_complete(
             self.communicator.receive_output(0)
         )
-        return output
 
     def get_all_output(self):
         outputs = []
@@ -102,9 +101,9 @@ class ASGITest(TestCase):
         self.assertEqual(response_start['headers'][0], (b"Content-Type", CONTENT_TYPE_LATEST.encode('utf8')))
         # Body
         output = response_body['body'].decode('utf8')
-        self.assertIn("# HELP " + metric_name + "_total " + help_text + "\n", output)
-        self.assertIn("# TYPE " + metric_name + "_total counter\n", output)
-        self.assertIn(metric_name + "_total " + str(increments) + ".0\n", output)
+        self.assertIn(f"# HELP {metric_name}_total {help_text}" + "\n", output)
+        self.assertIn(f"# TYPE {metric_name}" + "_total counter\n", output)
+        self.assertIn(f"{metric_name}_total {str(increments)}" + ".0\n", output)
 
     def test_report_metrics_1(self):
         self.validate_metrics("counter", "A counter", 2)

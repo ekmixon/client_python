@@ -21,18 +21,15 @@ def text_string_to_metric_families(text):
 
     See text_fd_to_metric_families.
     """
-    for metric_family in text_fd_to_metric_families(StringIO.StringIO(text)):
-        yield metric_family
+    yield from text_fd_to_metric_families(StringIO.StringIO(text))
 
 
-_CANONICAL_NUMBERS = set([float("inf")])
+_CANONICAL_NUMBERS = {float("inf")}
 
 
 def _isUncanonicalNumber(s):
     f = float(s)
-    if f not in _CANONICAL_NUMBERS:
-        return False  # Only the canonical numbers are required to be canonical.
-    return s != floatToGoString(f)
+    return False if f not in _CANONICAL_NUMBERS else s != floatToGoString(f)
 
 
 ESCAPE_SEQUENCES = {
@@ -61,18 +58,17 @@ def _unescape_help(text):
         if slash:
             if char == '\\':
                 result.append('\\')
-            elif char == '"':
-                result.append('"')
             elif char == 'n':
                 result.append('\n')
+            elif char == '"':
+                result.append('"')
             else:
                 result.append('\\' + char)
             slash = False
+        elif char == '\\':
+            slash = True
         else:
-            if char == '\\':
-                slash = True
-            else:
-                result.append(char)
+            result.append(char)
 
     if slash:
         result.append('\\')
@@ -144,16 +140,16 @@ def _parse_labels_with_state_machine(text):
             if char == '"':
                 state = 'labelvalue'
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         elif state == 'labelvalue':
             if char == '\\':
                 state = 'labelvalueslash'
             elif char == '"':
                 ln = ''.join(labelname)
                 if not METRIC_LABEL_NAME_RE.match(ln):
-                    raise ValueError("Invalid line, bad label name: " + text)
+                    raise ValueError(f"Invalid line, bad label name: {text}")
                 if ln in labels:
-                    raise ValueError("Invalid line, duplicate label name: " + text)
+                    raise ValueError(f"Invalid line, duplicate label name: {text}")
                 labels[ln] = ''.join(labelvalue)
                 labelname = []
                 labelvalue = []
@@ -166,7 +162,7 @@ def _parse_labels_with_state_machine(text):
             elif char == '}':
                 state = 'endoflabels'
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         elif state == 'labelvalueslash':
             state = 'labelvalue'
             if char == '\\':
@@ -181,7 +177,7 @@ def _parse_labels_with_state_machine(text):
             if char == ' ':
                 break
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         labels_len += 1
     return labels, labels_len
 
@@ -231,27 +227,24 @@ def _parse_labels(text):
             if "\\" in label_value:
                 label_value = _replace_escaping(label_value)
             if not METRIC_LABEL_NAME_RE.match(label_name):
-                raise ValueError("invalid line, bad label name: " + text)
+                raise ValueError(f"invalid line, bad label name: {text}")
             if label_name in labels:
-                raise ValueError("invalid line, duplicate label name: " + text)
+                raise ValueError(f"invalid line, duplicate label name: {text}")
             labels[label_name] = label_value
 
             # Remove the processed label from the sub-slice for next iteration
             sub_labels = sub_labels[quote_end + 1:]
-            if sub_labels.startswith(","):
-                next_comma = 1
-            else:
-                next_comma = 0
+            next_comma = 1 if sub_labels.startswith(",") else 0
             sub_labels = sub_labels[next_comma:]
 
             # Check for missing commas
             if sub_labels and next_comma == 0:
                 raise ValueError
-            
+
         return labels
 
     except ValueError:
-        raise ValueError("Invalid labels: " + text)
+        raise ValueError(f"Invalid labels: {text}")
 
 
 def _parse_sample(text):
@@ -313,19 +306,18 @@ def _parse_remaining_text(text):
             if char == '#':
                 state = 'exemplarspace'
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         elif state == 'exemplarspace':
             if char == ' ':
                 state = 'exemplarstartoflabels'
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         elif state == 'exemplarstartoflabels':
-            if char == '{':
-                label_start, label_end = text.index("{"), text.rindex("}")
-                exemplar_labels = _parse_labels(text[label_start + 1:label_end])
-                state = 'exemplarparsedlabels'
-            else:
-                raise ValueError("Invalid line: " + text)
+            if char != '{':
+                raise ValueError(f"Invalid line: {text}")
+            label_start, label_end = text.index("{"), text.rindex("}")
+            exemplar_labels = _parse_labels(text[label_start + 1:label_end])
+            state = 'exemplarparsedlabels'
         elif state == 'exemplarparsedlabels':
             if char == '}':
                 state = 'exemplarvaluespace'
@@ -333,10 +325,10 @@ def _parse_remaining_text(text):
             if char == ' ':
                 state = 'exemplarvalue'
             else:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
         elif state == 'exemplarvalue':
             if char == ' ' and not exemplar_value:
-                raise ValueError("Invalid line: " + text)
+                raise ValueError(f"Invalid line: {text}")
             elif char == ' ':
                 state = 'exemplartimestamp'
             else:
@@ -346,22 +338,22 @@ def _parse_remaining_text(text):
 
     # Trailing space after value.
     if state == 'timestamp' and not timestamp:
-        raise ValueError("Invalid line: " + text)
+        raise ValueError(f"Invalid line: {text}")
 
     # Trailing space after value.
     if state == 'exemplartimestamp' and not exemplar_timestamp:
-        raise ValueError("Invalid line: " + text)
+        raise ValueError(f"Invalid line: {text}")
 
     # Incomplete exemplar.
     if state in ['exemplarhash', 'exemplarspace', 'exemplarstartoflabels', 'exemplarparsedlabels']:
-        raise ValueError("Invalid line: " + text)
+        raise ValueError(f"Invalid line: {text}")
 
     ts = _parse_timestamp(timestamp)
     exemplar = None
     if exemplar_labels is not None:
-        exemplar_length = sum([len(k) + len(v) for k, v in exemplar_labels.items()])
+        exemplar_length = sum(len(k) + len(v) for k, v in exemplar_labels.items())
         if exemplar_length > 128:
-            raise ValueError("Exmplar labels are too long: " + text)
+            raise ValueError(f"Exmplar labels are too long: {text}")
         exemplar = Exemplar(
             exemplar_labels,
             _parse_value(exemplar_value),
@@ -383,7 +375,10 @@ def _group_for_sample(sample, name, typ):
         d = sample.labels.copy()
         del d[name]
         return d
-    if typ in ['histogram', 'gaugehistogram'] and sample.name == name + '_bucket':
+    if (
+        typ in ['histogram', 'gaugehistogram']
+        and sample.name == f'{name}_bucket'
+    ):
         d = sample.labels.copy()
         del d['le']
         return d
@@ -396,19 +391,22 @@ def _check_histogram(samples, name):
 
     def do_checks():
         if bucket != float('+Inf'):
-            raise ValueError("+Inf bucket missing: " + name)
+            raise ValueError(f"+Inf bucket missing: {name}")
         if count is not None and value != count:
-            raise ValueError("Count does not match +Inf value: " + name)
+            raise ValueError(f"Count does not match +Inf value: {name}")
         if has_sum and count is None:
-            raise ValueError("_count must be present if _sum is present: " + name)
+            raise ValueError(f"_count must be present if _sum is present: {name}")
         if has_gsum and count is None:
-            raise ValueError("_gcount must be present if _gsum is present: " + name)
-        if not (has_sum or has_gsum) and count is not None:
-            raise ValueError("_sum/_gsum must be present if _count is present: " + name)
+            raise ValueError(f"_gcount must be present if _gsum is present: {name}")
+        if not has_sum and not has_gsum and count is not None:
+            raise ValueError(f"_sum/_gsum must be present if _count is present: {name}")
         if has_negative_buckets and has_sum:
-            raise ValueError("Cannot have _sum with negative buckets: " + name)
+            raise ValueError(f"Cannot have _sum with negative buckets: {name}")
         if not has_negative_buckets and has_negative_gsum:
-            raise ValueError("Cannot have negative _gsum with non-negative buckets: " + name)
+            raise ValueError(
+                f"Cannot have negative _gsum with non-negative buckets: {name}"
+            )
+
 
     for s in samples:
         suffix = s.name[len(name):]
@@ -431,9 +429,9 @@ def _check_histogram(samples, name):
             if b < 0:
                 has_negative_buckets = True
             if bucket is not None and b <= bucket:
-                raise ValueError("Buckets out of order: " + name)
+                raise ValueError(f"Buckets out of order: {name}")
             if s.value < value:
-                raise ValueError("Bucket values out of order: " + name)
+                raise ValueError(f"Bucket values out of order: {name}")
             bucket = b
             value = s.value
         elif suffix in ['_count', '_gcount']:
@@ -476,16 +474,16 @@ def text_fd_to_metric_families(fd):
             typ = 'unknown'
         for suffix in set(type_suffixes.get(typ, []) + [""]):
             if name + suffix in seen_names:
-                raise ValueError("Clashing name: " + name + suffix)
+                raise ValueError(f"Clashing name: {name}{suffix}")
             seen_names.add(name + suffix)
         if documentation is None:
             documentation = ''
         if unit is None:
             unit = ''
-        if unit and not name.endswith("_" + unit):
-            raise ValueError("Unit does not match metric name: " + name)
+        if unit and not name.endswith(f"_{unit}"):
+            raise ValueError(f"Unit does not match metric name: {name}")
         if unit and typ in ['info', 'stateset']:
-            raise ValueError("Units not allowed for this metric type: " + name)
+            raise ValueError(f"Units not allowed for this metric type: {name}")
         if typ in ['histogram', 'gaugehistogram']:
             _check_histogram(samples, name)
         metric = Metric(name, documentation, typ, unit)
@@ -498,7 +496,7 @@ def text_fd_to_metric_families(fd):
             line = line[:-1]
 
         if eof:
-            raise ValueError("Received line after # EOF: " + line)
+            raise ValueError(f"Received line after # EOF: {line}")
 
         if not line:
             raise ValueError("Received blank line")
@@ -508,9 +506,9 @@ def text_fd_to_metric_families(fd):
         elif line.startswith('#'):
             parts = line.split(' ', 3)
             if len(parts) < 4:
-                raise ValueError("Invalid line: " + line)
+                raise ValueError(f"Invalid line: {line}")
             if parts[2] == name and samples:
-                raise ValueError("Received metadata after samples: " + line)
+                raise ValueError(f"Received metadata after samples: {line}")
             if parts[2] != name:
                 if name is not None:
                     yield build_metric(name, documentation, typ, unit, samples)
@@ -528,21 +526,21 @@ def text_fd_to_metric_families(fd):
 
             if parts[1] == 'HELP':
                 if documentation is not None:
-                    raise ValueError("More than one HELP for metric: " + line)
+                    raise ValueError(f"More than one HELP for metric: {line}")
                 documentation = _unescape_help(parts[3])
             elif parts[1] == 'TYPE':
                 if typ is not None:
-                    raise ValueError("More than one TYPE for metric: " + line)
+                    raise ValueError(f"More than one TYPE for metric: {line}")
                 typ = parts[3]
                 if typ == 'untyped':
-                    raise ValueError("Invalid TYPE for metric: " + line)
+                    raise ValueError(f"Invalid TYPE for metric: {line}")
                 allowed_names = [name + n for n in type_suffixes.get(typ, [''])]
             elif parts[1] == 'UNIT':
                 if unit is not None:
-                    raise ValueError("More than one UNIT for metric: " + line)
+                    raise ValueError(f"More than one UNIT for metric: {line}")
                 unit = parts[3]
             else:
-                raise ValueError("Invalid line: " + line)
+                raise ValueError(f"Invalid line: {line}")
         else:
             sample = _parse_sample(line)
             if sample.name not in allowed_names:
@@ -561,24 +559,31 @@ def text_fd_to_metric_families(fd):
                 allowed_names = [sample.name]
 
             if typ == 'stateset' and name not in sample.labels:
-                raise ValueError("Stateset missing label: " + line)
-            if (typ in ['histogram', 'gaugehistogram'] and name + '_bucket' == sample.name
-                    and (sample.labels.get('le', "NaN") == "NaN"
-                         or _isUncanonicalNumber(sample.labels['le']))):
-                raise ValueError("Invalid le label: " + line)
+                raise ValueError(f"Stateset missing label: {line}")
+            if (
+                typ in ['histogram', 'gaugehistogram']
+                and f'{name}_bucket' == sample.name
+                and (
+                    (
+                        sample.labels.get('le', "NaN") == "NaN"
+                        or _isUncanonicalNumber(sample.labels['le'])
+                    )
+                )
+            ):
+                raise ValueError(f"Invalid le label: {line}")
             if (typ == 'summary' and name == sample.name
                     and (not (0 <= float(sample.labels.get('quantile', -1)) <= 1)
                          or _isUncanonicalNumber(sample.labels['quantile']))):
-                raise ValueError("Invalid quantile label: " + line)
+                raise ValueError(f"Invalid quantile label: {line}")
 
             g = tuple(sorted(_group_for_sample(sample, name, typ).items()))
             if group is not None and g != group and g in seen_groups:
-                raise ValueError("Invalid metric grouping: " + line)
+                raise ValueError(f"Invalid metric grouping: {line}")
             if group is not None and g == group:
                 if (sample.timestamp is None) != (group_timestamp is None):
-                    raise ValueError("Mix of timestamp presence within a group: " + line)
+                    raise ValueError(f"Mix of timestamp presence within a group: {line}")
                 if group_timestamp is not None and group_timestamp > sample.timestamp and typ != 'info':
-                    raise ValueError("Timestamps went backwards within a group: " + line)
+                    raise ValueError(f"Timestamps went backwards within a group: {line}")
             else:
                 group_timestamp_samples = set()
 
@@ -593,20 +598,23 @@ def text_fd_to_metric_families(fd):
             seen_groups.add(g)
 
             if typ == 'stateset' and sample.value not in [0, 1]:
-                raise ValueError("Stateset samples can only have values zero and one: " + line)
+                raise ValueError(f"Stateset samples can only have values zero and one: {line}")
             if typ == 'info' and sample.value != 1:
-                raise ValueError("Info samples can only have value one: " + line)
+                raise ValueError(f"Info samples can only have value one: {line}")
             if typ == 'summary' and name == sample.name and sample.value < 0:
-                raise ValueError("Quantile values cannot be negative: " + line)
+                raise ValueError(f"Quantile values cannot be negative: {line}")
             if sample.name[len(name):] in ['_total', '_sum', '_count', '_bucket', '_gcount', '_gsum'] and math.isnan(
                     sample.value):
-                raise ValueError("Counter-like samples cannot be NaN: " + line)
+                raise ValueError(f"Counter-like samples cannot be NaN: {line}")
             if sample.name[len(name):] in ['_total', '_sum', '_count', '_bucket', '_gcount'] and sample.value < 0:
-                raise ValueError("Counter-like samples cannot be negative: " + line)
+                raise ValueError(f"Counter-like samples cannot be negative: {line}")
             if sample.exemplar and not (
                     (typ in ['histogram', 'gaugehistogram'] and sample.name.endswith('_bucket'))
                     or (typ in ['counter'] and sample.name.endswith('_total'))):
-                raise ValueError("Invalid line only histogram/gaugehistogram buckets and counters can have exemplars: " + line)
+                raise ValueError(
+                    f"Invalid line only histogram/gaugehistogram buckets and counters can have exemplars: {line}"
+                )
+
 
     if name is not None:
         yield build_metric(name, documentation, typ, unit, samples)

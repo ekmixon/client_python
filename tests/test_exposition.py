@@ -367,23 +367,23 @@ class TestPushGateway(unittest.TestCase):
         self.assertEqual(self.requests[0][1], self.requests[1][1])
 
         # ensure the redirect took place at the expected redirect location.
-        self.assertEqual(self.requests[1][0].path, "/" + self.redirect_flag)
+        self.assertEqual(self.requests[1][0].path, f"/{self.redirect_flag}")
 
     def test_push_with_trailing_slash(self):
-        address = self.address + '/'
+        address = f'{self.address}/'
         push_to_gateway(address, "my_job_with_trailing_slash", self.registry)
 
         self.assertNotIn('//', self.requests[0][0].path)
 
     def test_instance_ip_grouping_key(self):
-        self.assertTrue('' != instance_ip_grouping_key()['instance'])
+        self.assertTrue(instance_ip_grouping_key()['instance'] != '')
 
     def test_metrics_handler(self):
         handler = MetricsHandler.factory(self.registry)
         self.assertEqual(handler.registry, self.registry)
 
     def test_metrics_handler_subclassing(self):
-        subclass = type(str('MetricsHandlerSubclass'), (MetricsHandler, object), {})
+        subclass = type('MetricsHandlerSubclass', (MetricsHandler, object), {})
         handler = subclass.factory(self.registry)
 
         self.assertTrue(issubclass(handler, (MetricsHandler, subclass)))

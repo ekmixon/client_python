@@ -57,10 +57,7 @@ class GraphiteBridge(object):
         now = int(self._timer())
         output = []
 
-        prefixstr = ''
-        if prefix:
-            prefixstr = prefix + '.'
-
+        prefixstr = f'{prefix}.' if prefix else ''
         for metric in self._registry.collect():
             for s in metric.samples:
                 if s.labels:

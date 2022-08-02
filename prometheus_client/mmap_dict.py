@@ -73,10 +73,9 @@ class MmapedDict(object):
         if self._used == 0:
             self._used = 8
             _pack_integer(self._m, 0, self._used)
-        else:
-            if not read_mode:
-                for key, _, pos in self._read_all_values():
-                    self._positions[key] = pos
+        elif not read_mode:
+            for key, _, pos in self._read_all_values():
+                self._positions[key] = pos
 
     @staticmethod
     def read_all_values_from_file(filename):

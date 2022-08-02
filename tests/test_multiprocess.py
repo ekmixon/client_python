@@ -193,7 +193,7 @@ class TestMultiProcess(unittest.TestCase):
     def test_collect(self):
         pid = 0
         values.ValueClass = MultiProcessValue(lambda: pid)
-        labels = dict((i, i) for i in 'abcd')
+        labels = {i: i for i in 'abcd'}
 
         def add_label(key, value):
             l = labels.copy()
@@ -214,7 +214,7 @@ class TestMultiProcess(unittest.TestCase):
         g.labels(**labels).set(1)
         h.labels(**labels).observe(5)
 
-        metrics = dict((m.name, m) for m in self.collector.collect())
+        metrics = {m.name: m for m in self.collector.collect()}
 
         self.assertEqual(
             metrics['c'].samples, [Sample('c_total', labels, 2.0)]
@@ -253,7 +253,7 @@ class TestMultiProcess(unittest.TestCase):
     def test_merge_no_accumulate(self):
         pid = 0
         values.ValueClass = MultiProcessValue(lambda: pid)
-        labels = dict((i, i) for i in 'abcd')
+        labels = {i: i for i in 'abcd'}
 
         def add_label(key, value):
             l = labels.copy()
@@ -267,9 +267,7 @@ class TestMultiProcess(unittest.TestCase):
 
         path = os.path.join(os.environ['PROMETHEUS_MULTIPROC_DIR'], '*.db')
         files = glob.glob(path)
-        metrics = dict(
-            (m.name, m) for m in self.collector.merge(files, accumulate=False)
-        )
+        metrics = {m.name: m for m in self.collector.merge(files, accumulate=False)}
 
         metrics['h'].samples.sort(
             key=lambda x: (x[0], float(x[1].get('le', 0)))

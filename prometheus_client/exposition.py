@@ -31,7 +31,7 @@ except ImportError:
         build_opener, HTTPHandler, HTTPRedirectHandler, Request,
     )
 
-CONTENT_TYPE_LATEST = str('text/plain; version=0.0.4; charset=utf-8')
+CONTENT_TYPE_LATEST = 'text/plain; version=0.0.4; charset=utf-8'
 """Content type of the latest text format"""
 PYTHON27_OR_OLDER = sys.version_info < (3, )
 PYTHON376_OR_NEWER = sys.version_info > (3, 7, 5)
@@ -78,8 +78,9 @@ class _PrometheusRedirectHandler(HTTPRedirectHandler):
         # indicate the method, by monkeypatching this, instead of setting the
         # Request object's method attribute.
         m = getattr(req, "method", req.get_method())
-        if not (code in (301, 302, 303, 307) and m in ("GET", "HEAD")
-                or code in (301, 302, 303) and m in ("POST", "PUT")):
+        if (code not in (301, 302, 303, 307) or m not in ("GET", "HEAD")) and (
+            code not in (301, 302, 303) or m not in ("POST", "PUT")
+        ):
             raise HTTPError(req.full_url, code, msg, headers, fp)
         new_request = Request(
             newurl.replace(' ', '%20'),  # space escaping in new url if needed.
@@ -102,7 +103,7 @@ def _bake_output(registry, accept_header, params):
     if 'name[]' in params:
         registry = registry.restricted_registry(params['name[]'])
     output = encoder(registry)
-    return str('200 OK'), (str('Content-Type'), content_type), output
+    return '200 OK', ('Content-Type', content_type), output
 
 
 def make_wsgi_app(registry=REGISTRY):
@@ -114,8 +115,8 @@ def make_wsgi_app(registry=REGISTRY):
         params = parse_qs(environ.get('QUERY_STRING', ''))
         if environ['PATH_INFO'] == '/favicon.ico':
             # Serve empty response for browsers
-            status = str('200 OK')
-            header = (str(''), str(''))
+            status = '200 OK'
+            header = '', ''
             output = b''
         else:
             # Bake output
@@ -179,9 +180,9 @@ def generate_latest(registry=REGISTRY):
             mtype = metric.type
             # Munging from OpenMetrics into Prometheus format.
             if mtype == 'counter':
-                mname = mname + '_total'
+                mname = f'{mname}_total'
             elif mtype == 'info':
-                mname = mname + '_info'
+                mname = f'{mname}_info'
                 mtype = 'gauge'
             elif mtype == 'stateset':
                 mtype = 'gauge'
@@ -219,11 +220,14 @@ def generate_latest(registry=REGISTRY):
 
 def choose_encoder(accept_header):
     accept_header = accept_header or ''
-    for accepted in accept_header.split(','):
-        if accepted.split(';')[0].strip() == 'application/openmetrics-text':
-            return (openmetrics.generate_latest,
-                    openmetrics.CONTENT_TYPE_LATEST)
-    return generate_latest, CONTENT_TYPE_LATEST
+    return next(
+        (
+            (openmetrics.generate_latest, openmetrics.CONTENT_TYPE_LATEST)
+            for accepted in accept_header.split(',')
+            if accepted.split(';')[0].strip() == 'application/openmetrics-text'
+        ),
+        (generate_latest, CONTENT_TYPE_LATEST),
+    )
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
@@ -257,9 +261,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
         # As we have unicode_literals, we need to create a str()
         #  object for type().
         cls_name = str(cls.__name__)
-        MyMetricsHandler = type(cls_name, (cls, object),
-                                {"registry": registry})
-        return MyMetricsHandler
+        return type(cls_name, (cls, object), {"registry": registry})
 
 
 def write_to_textfile(path, registry):
@@ -267,10 +269,10 @@ def write_to_textfile(path, registry):
 
     This is intended for use with the Node exporter textfile collector.
     The path must end in .prom for the textfile collector to process it."""
-    tmppath = '%s.%s.%s' % (path, os.getpid(), threading.current_thread().ident)
+    tmppath = f'{path}.{os.getpid()}.{threading.current_thread().ident}'
     with open(tmppath, 'wb') as f:
         f.write(generate_latest(registry))
-    
+
     # rename(2) is atomic but fails on Windows if the destination file exists
     if os.name == 'nt':
         if sys.version_info <= (3, 3):
@@ -452,10 +454,7 @@ def _use_gateway(method, gateway, job, registry, grouping_key, timeout, handler)
     gateway = gateway.rstrip('/')
     url = '{0}/metrics/{1}/{2}'.format(gateway, *_escape_grouping_key("job", job))
 
-    data = b''
-    if method != 'DELETE':
-        data = generate_latest(registry)
-
+    data = generate_latest(registry) if method != 'DELETE' else b''
     if grouping_key is None:
         grouping_key = {}
     url += ''.join(
@@ -471,10 +470,13 @@ def _use_gateway(method, gateway, job, registry, grouping_key, timeout, handler)
 def _escape_grouping_key(k, v):
     if v == "":
         # Per https://github.com/prometheus/pushgateway/pull/346.
-        return k + "@base64", "="
+        return f"{k}@base64", "="
     elif '/' in v:
         # Added in Pushgateway 0.9.0.
-        return k + "@base64", base64.urlsafe_b64encode(v.encode("utf-8")).decode("utf-8")
+        return f"{k}@base64", base64.urlsafe_b64encode(
+            v.encode("utf-8")
+        ).decode("utf-8")
+
     else:
         return k, quote_plus(v)
 

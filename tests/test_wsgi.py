@@ -41,9 +41,9 @@ class WSGITest(TestCase):
         self.assertEqual(len(self.captured_headers), 1)
         self.assertEqual(self.captured_headers[0], ("Content-Type", CONTENT_TYPE_LATEST))
         # Body
-        self.assertIn("# HELP " + metric_name + "_total " + help_text + "\n", output)
-        self.assertIn("# TYPE " + metric_name + "_total counter\n", output)
-        self.assertIn(metric_name + "_total " + str(increments) + ".0\n", output)
+        self.assertIn(f"# HELP {metric_name}_total {help_text}" + "\n", output)
+        self.assertIn(f"# TYPE {metric_name}" + "_total counter\n", output)
+        self.assertIn(f"{metric_name}_total {str(increments)}" + ".0\n", output)
 
     def test_report_metrics_1(self):
         self.validate_metrics("counter", "A counter", 2)
